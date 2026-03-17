@@ -8,38 +8,36 @@ import re
 import ctypes
 from tkinter import messagebox, filedialog
 from pathlib import Path
-from static_ffmpeg import add_paths  # --- YENİ: static-ffmpeg entegrasyonu ---
+from static_ffmpeg import add_paths  #
 
-# --- 1. KRİTİK AYAR: DPI FARKINDALIĞI ---
+# --- 1. FFmpeg YOLUNU HER SEFERİNDE DOĞRULA ---
+def refresh_ffmpeg():
+    try:
+        # Klasör taşınsa bile yolu sistemde tazeler
+        add_paths() 
+    except Exception:
+        pass
+
+# İlk açılışta bir kez çalıştır
+refresh_ffmpeg()
+
+# --- 2. DPI VE SİSTEM AYARLARI ---
 try:
     if os.name == 'nt':
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
-except Exception:
-    pass
+except Exception: pass
 
-# --- 2. FFmpeg OTOMATİK HAZIRLIK ---
-# Bu komut FFmpeg dosyalarını indirir/bulur ve sistem yoluna (PATH) ekler.
-try:
-    add_paths()
-except Exception as e:
-    print(f"FFmpeg yolları eklenirken hata: {e}")
-
-# --- 3. DOSYA YOLU YÖNETİCİSİ (PyInstaller İçin) ---
 def resource_path(relative_path):
-    try:
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.abspath(".")
+    try: base_path = sys._MEIPASS
+    except Exception: base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
-# --- 4. SİSTEM SABİTLERİ ---
 if getattr(sys, 'frozen', False):
     BASE_DIR = os.path.dirname(sys.executable)
 else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
-# FFMPEG_BIN artık gerekli değil çünkü static-ffmpeg PATH üzerinden çalışıyor.
 USER_VIDEOS_DIR = str(os.path.join(Path.home(), "Videos"))
 
 def hide_file(file_path):
@@ -51,7 +49,7 @@ def hide_file(file_path):
 def clean_ansi(text):
     return re.sub(r'\x1b\[[0-9;]*m', '', str(text)).strip()
 
-# --- 5. DİL PAKETLERİ ---
+# --- 3. DİL PAKETLERİ ---
 LANGUAGES = {
     "TR": {"title": "Video İndirici", "v_btn": "Video İndir", "a_btn": "Ses İndir", "entry": "Link...", "settings": "Ayarlar", "set_path": "Konumu Değiştir", "set_lang": "Dili Değiştir", "back": "Geri Dön", "done": "Bitti!", "error": "Hata!", "cur_path": "Konum:"},
     "EN": {"title": "Video Downloader", "v_btn": "Download Video", "a_btn": "Download Audio", "entry": "Link...", "settings": "Settings", "set_path": "Change Path", "set_lang": "Change Language", "back": "Back", "done": "Done!", "error": "Error!", "cur_path": "Path:"},
@@ -66,18 +64,14 @@ class App(ctk.CTk):
         super().__init__()
         self.title("Video Downloader") 
         self.geometry("700x500")
-        
         self.config = self.load_config()
         self.lang = self.config.get("language")
         self.base_path = self.config.get("path")
-        
         ctk.set_appearance_mode("dark")
-
         try:
             icon_p = resource_path("icon.ico")
             self.iconbitmap(icon_p)
         except: pass
-
         if not self.lang: self.show_lang_screen(True)
         elif not self.base_path: self.show_path_screen()
         else: self.setup_main_ui()
@@ -128,29 +122,22 @@ class App(ctk.CTk):
         t = LANGUAGES[self.lang]
         self.title(t["title"])
         self.geometry("700x500")
-
         ctk.CTkButton(self, text="⚙", width=35, fg_color="gray30", command=self.setup_settings_ui).place(relx=0.97, rely=0.03, anchor="ne")
-
         self.main_label = ctk.CTkLabel(self, text=t["title"], font=("Arial", 30, "bold"))
         self.main_label.pack(pady=(60, 20))
-
         self.url_input = ctk.CTkEntry(self, placeholder_text=t["entry"], width=560, height=45, justify="center")
         self.url_input.pack(pady=10)
-
         self.perc_label = ctk.CTkLabel(self, text="%0", font=("Arial", 52, "bold"), text_color="#3B8ED0")
         self.perc_label.pack(pady=(10, 0))
-        
         self.progress_bar = ctk.CTkProgressBar(self, width=560, height=15)
         self.progress_bar.set(0)
         self.progress_bar.pack(pady=10)
-
         self.info_frame = ctk.CTkFrame(self, fg_color="transparent", width=560)
         self.info_frame.pack()
         self.speed_label = ctk.CTkLabel(self.info_frame, text="0 MiB/s", font=("Arial", 13, "bold"), text_color="gray")
         self.speed_label.pack(side="left", padx=10)
         self.eta_label = ctk.CTkLabel(self.info_frame, text="ETA: 00:00", font=("Arial", 13, "bold"), text_color="gray")
         self.eta_label.pack(side="right", padx=10)
-
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.pack(pady=30)
         ctk.CTkButton(btn_frame, text=t["v_btn"], width=270, height=60, font=("Arial", 18, "bold"), command=lambda: self.start_dl("video")).grid(row=0, column=0, padx=10)
@@ -161,10 +148,8 @@ class App(ctk.CTk):
         t = LANGUAGES[self.lang]
         self.title(t["settings"])
         self.geometry("550x500")
-
         ctk.CTkLabel(self, text=t["settings"], font=("Arial", 26, "bold")).pack(pady=30)
         ctk.CTkLabel(self, text=f"{t['cur_path']} {self.base_path}", wraplength=450, text_color="gray").pack(pady=10)
-        
         ctk.CTkButton(self, text=t["set_path"], command=self.change_path_settings).pack(pady=10)
         ctk.CTkButton(self, text=t["set_lang"], fg_color="gray30", command=lambda: self.show_lang_screen(False)).pack(pady=10)
         ctk.CTkButton(self, text=t["back"], fg_color="transparent", border_width=1, command=self.setup_main_ui).pack(pady=40)
@@ -179,10 +164,8 @@ class App(ctk.CTk):
             p_str = clean_ansi(d.get('_percent_str', '0%'))
             s_str = clean_ansi(d.get('_speed_str', '0 MiB/s'))
             e_str = clean_ansi(d.get('_eta_str', '00:00'))
-            
             temp_file = d.get('tmpfilename') or d.get('filename')
             if temp_file: hide_file(temp_file)
-            
             try:
                 p_val = float(p_str.replace('%', '')) / 100
                 self.after(0, lambda: self.perc_label.configure(text=p_str))
@@ -198,15 +181,18 @@ class App(ctk.CTk):
 
     def worker(self, url, mode):
         t = LANGUAGES[self.lang]
+        # Her indirme öncesi yolu tekrar doğrula
+        refresh_ffmpeg() 
+        
         folder = "video_downloader" if mode == "video" else "audio_downloader"
         path = os.path.join(self.base_path, folder)
         if not os.path.exists(path): os.makedirs(path)
 
         try:
             ydl_opts = {
+                # Formatı mp4 ve m4a olarak daha sağlam hale getirdik
                 'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
                 'outtmpl': os.path.join(path, '%(title)s.%(ext)s'),
-                # static-ffmpeg sayesinde ffmpeg_location belirtmeye gerek yok, PATH'ten okunur
                 'progress_hooks': [self.progress_hook],
                 'quiet': True, 'no_warnings': True,
                 'postprocessors': [{
